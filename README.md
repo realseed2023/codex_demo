@@ -21,7 +21,6 @@
    - 管理端菜单模块：`http://127.0.0.1:8000/admin/menus`
    - 对外菜单接口：`http://127.0.0.1:8000/api/menus`
    - 客户端桌码预下单：`http://127.0.0.1:8000/client/preorders`
-   - 订单支付状态占位：`http://127.0.0.1:8000/api/orders/payments/status`
 
 ## 2. 菜单管理最小可用能力
 
@@ -29,9 +28,17 @@
 - `categories`：`id`, `name`, `sort`, `status`, `created_at`, `updated_at`
 - `menu_items`：`id`, `category_id`, `name`, `description`, `price`, `image_url`, `status`, `stock`, `created_at`, `updated_at`
 
-> 当前以 `storage/menu_data.json` 持久化模拟数据表。
+### 2.2 数据存储模式（新增）
+通过 `DB_DRIVER` 配置切换存储实现：
+- `DB_DRIVER=json`：使用 `storage/menu_data.json` 和 `storage/preorders.json`
+- `DB_DRIVER=mysql`：使用 MySQL（Repository 会自动建表/初始化）
 
-### 2.2 管理端接口
+MySQL 主要表：
+- `categories`
+- `menu_items`
+- `preorders`（`items` 字段为 JSON）
+
+### 2.3 管理端接口
 - 分类：
   - `POST /admin/categories` 新增
   - `PUT /admin/categories?id=1` 编辑（支持名称、排序、启用/禁用）
@@ -43,29 +50,12 @@
 - 查询：
   - `GET /admin/menus` 查看分类与菜品
 
-### 2.3 对外菜单读取接口
+### 2.4 对外菜单读取接口
 - `GET /api/menus`
 - 仅返回启用分类下、且 `on_sale` 且库存大于 0 的菜品
 - 按分类聚合，按分类 `sort` 排序
 
-### 2.4 基础校验
+### 2.5 基础校验
 - 价格必须为非负数
 - 分类与菜品名称必填
 - 下架或不可售（库存<=0）菜品不可加入预下单
-
-## 3. 目录结构说明
-
-```text
-public/                # 统一入口（index.php）
-routes/                # 路由定义（web.php）
-app/
-  Controllers/         # 控制器层
-  Services/            # 业务服务层
-  Repositories/        # 数据访问层
-  Models/              # 领域模型
-  Views/               # 视图模板（服务端渲染）
-  Core/                # 路由器、autoload、通用 helper
-storage/               # 轻量 JSON 持久化
-config/                # 应用与数据库配置
-.env.example           # 环境变量模板
-```
