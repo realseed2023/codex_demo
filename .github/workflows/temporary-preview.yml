@@ -68,12 +68,18 @@ jobs:
 
           PREVIEW_URL=""
           for _ in $(seq 1 30); do
-            PREVIEW_URL=$(rg -o "https://[-a-zA-Z0-9]+\.trycloudflare\.com" -m 1 tunnel.log || true)
+            PREVIEW_URL=$(grep -Eo "https://[-a-zA-Z0-9]+\.trycloudflare\.com" tunnel.log | head -n 1 || true)
             if [ -n "$PREVIEW_URL" ]; then
               break
             fi
             sleep 2
           done
+
+          if ! pgrep -f "cloudflared tunnel --url http://127.0.0.1:8000" > /dev/null; then
+            echo "cloudflared process exited unexpectedly."
+            cat tunnel.log
+            exit 1
+          fi
 
           if [ -z "$PREVIEW_URL" ]; then
             echo "Failed to obtain tunnel URL."
