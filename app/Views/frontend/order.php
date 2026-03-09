@@ -73,7 +73,7 @@ async function validateTable() {
 async function loadMenu() {
     const res = await fetch('/api/menus?format=json');
     const data = await res.json();
-    state.menu = data.menu || [];
+    state.menu = data.categories || [];
     renderCategories();
     renderMenu();
     renderCart();

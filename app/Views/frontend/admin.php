@@ -111,6 +111,26 @@
             </tbody>
         </table>
     </section>
+
+    <section class="card" style="margin-top:14px;">
+        <h3 class="title">菜品列表</h3>
+        <table>
+            <thead><tr><th>菜品ID</th><th>分类ID</th><th>菜品名</th><th>价格</th><th>库存</th><th>状态</th></tr></thead>
+            <tbody>
+            <?php foreach (($menus['menu_items'] ?? []) as $item): ?>
+                <tr>
+                    <td><?= (int) $item['id'] ?></td>
+                    <td><?= (int) $item['category_id'] ?></td>
+                    <td><?= $h($item['name']) ?></td>
+                    <td>¥<?= number_format((float) $item['price'], 2) ?></td>
+                    <td><?= (int) $item['stock'] ?></td>
+                    <td><?= $h($item['status']) ?></td>
+                </tr>
+            <?php endforeach; ?>
+            </tbody>
+        </table>
+    </section>
+
 </div>
 <script>
 document.querySelectorAll('.api-form').forEach(form => {
