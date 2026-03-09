@@ -7,6 +7,7 @@ use App\Controllers\ClientPreorderController;
 use App\Controllers\HomeController;
 use App\Controllers\MenuController;
 use App\Controllers\OrderPaymentController;
+use App\Controllers\FrontendController;
 
 return [
     ['GET', '/', HomeController::class . '@index'],
@@ -31,6 +32,12 @@ return [
     ['GET', '/client/menu', ClientPreorderController::class . '@menu'],
     ['POST', '/client/cart', ClientPreorderController::class . '@cart'],
     ['POST', '/client/preorders/submit', ClientPreorderController::class . '@submit'],
+
+
+    // 新前端业务页（保留旧页面）
+    ['GET', '/frontend/', FrontendController::class . '@index'],
+    ['GET', '/frontend/admin/', FrontendController::class . '@admin'],
+    ['GET', '/frontend/order', FrontendController::class . '@order'],
 
     // 订单支付模块占位（仅接口与状态预留，暂不接支付渠道）
     ['POST', '/api/orders/payments', OrderPaymentController::class . '@createPaymentIntent'],

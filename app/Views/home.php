@@ -12,6 +12,15 @@
     <p class="text-muted">已为现有 API 提供 Bootstrap 响应式页面，可直接在浏览器中调试接口。</p>
     <div class="row g-3 mt-1">
         <div class="col-12 col-md-6 col-lg-4">
+            <div class="card h-100 border-warning">
+                <div class="card-body">
+                    <h5 class="card-title">新版前端业务页</h5>
+                    <p class="card-text">更贴近用户的点餐与后台运营界面，路由位于 <code>/frontend/</code> 下。</p>
+                    <a class="btn btn-warning" href="/frontend/">进入 /frontend/</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-6 col-lg-4">
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">管理端菜单</h5>
