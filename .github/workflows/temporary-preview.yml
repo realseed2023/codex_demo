@@ -1,0 +1,128 @@
+name: Temporary PHP Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      duration_minutes:
+        description: "Preview tunnel duration in minutes (1-120)"
+        required: false
+        default: "30"
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 130
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate duration input
+        id: duration
+        run: |
+          DURATION="${{ github.event.inputs.duration_minutes || '30' }}"
+          if ! [[ "$DURATION" =~ ^[0-9]+$ ]]; then
+            echo "duration_minutes must be a number"
+            exit 1
+          fi
+          if [ "$DURATION" -lt 1 ] || [ "$DURATION" -gt 120 ]; then
+            echo "duration_minutes must be between 1 and 120"
+            exit 1
+          fi
+          echo "value=$DURATION" >> "$GITHUB_OUTPUT"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+
+      - name: Prepare environment
+        run: |
+          if [ ! -f .env ]; then
+            cp .env.example .env
+          fi
+
+      - name: Start PHP server
+        run: |
+          nohup php -S 127.0.0.1:8000 -t public > php-server.log 2>&1 &
+          sleep 2
+          curl --fail --silent http://127.0.0.1:8000/ > /dev/null
+
+      - name: Install cloudflared
+        run: |
+          curl -L --fail --silent --show-error \
+            https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+            -o cloudflared
+          chmod +x cloudflared
+
+      - name: Open temporary tunnel
+        id: tunnel
+        run: |
+          nohup ./cloudflared tunnel --url http://127.0.0.1:8000 > tunnel.log 2>&1 &
+
+          PREVIEW_URL=""
+          for _ in $(seq 1 30); do
+            PREVIEW_URL=$(grep -Eo "https://[-a-zA-Z0-9]+\.trycloudflare\.com" tunnel.log | head -n 1 || true)
+            if [ -n "$PREVIEW_URL" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if ! pgrep -f "cloudflared tunnel --url http://127.0.0.1:8000" > /dev/null; then
+            echo "cloudflared process exited unexpectedly."
+            cat tunnel.log
+            exit 1
+          fi
+
+          if [ -z "$PREVIEW_URL" ]; then
+            echo "Failed to obtain tunnel URL."
+            cat tunnel.log
+            exit 1
+          fi
+
+          {
+            echo "## 临时预览地址"
+            echo "- URL: $PREVIEW_URL"
+            echo "- 有效时间: ${{ steps.duration.outputs.value }} 分钟（工作流运行期间）"
+            echo "- 到期后请重新手动触发 workflow_dispatch"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "preview_url=$PREVIEW_URL" >> "$GITHUB_OUTPUT"
+          echo "Preview URL: $PREVIEW_URL"
+
+      - name: Comment preview URL on PR
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        env:
+          PREVIEW_URL: ${{ steps.tunnel.outputs.preview_url }}
+          DURATION: ${{ steps.duration.outputs.value }}
+        with:
+          script: |
+            const marker = '<!-- temporary-php-preview-url -->';
+            const body = `${marker}
+            🚀 临时预览已就绪：${process.env.PREVIEW_URL}
+
+            - 预计保活时长：${process.env.DURATION} 分钟
+            - 工作流结束后链接将失效（重新 push 或手动触发可获取新链接）`;
+
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
+            const existing = comments.data.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+      - name: Keep preview alive
+        run: |
+          sleep "$(( ${{ steps.duration.outputs.value }} * 60 ))"
