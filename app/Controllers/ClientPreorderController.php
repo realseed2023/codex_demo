@@ -21,6 +21,7 @@ class ClientPreorderController
         jsonResponse([
             'module' => 'client-preorder',
             'preorders' => $this->preorderService->listPreorders(),
+            'status_flow' => $this->preorderService->allowedStatusFlow(),
         ]);
     }
 
@@ -71,6 +72,7 @@ class ClientPreorderController
             jsonResponse([
                 'module' => 'client-preorder',
                 'data' => $order,
+                'payment_option' => 'pay_later',
             ], 201);
         } catch (InvalidArgumentException $e) {
             jsonResponse([

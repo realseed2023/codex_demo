@@ -284,7 +284,7 @@ class PreorderRepository
             id INT PRIMARY KEY AUTO_INCREMENT,
             table_id INT NOT NULL,
             order_no VARCHAR(64) NULL,
-            status VARCHAR(32) NOT NULL,
+            status VARCHAR(32) NOT NULL COMMENT 'draft/submitted/pending_payment/paid/confirmed/completed/cancelled',
             subtotal_amount DECIMAL(10,2) NOT NULL,
             remark VARCHAR(255) NOT NULL DEFAULT '',
             created_at DATETIME NOT NULL,
@@ -303,6 +303,22 @@ class PreorderRepository
             line_amount DECIMAL(10,2) NOT NULL,
             INDEX idx_pre_order_items_pre_order_id (pre_order_id),
             CONSTRAINT fk_pre_order_items_pre_order FOREIGN KEY (pre_order_id) REFERENCES pre_orders(id) ON DELETE CASCADE
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS payment_records (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            order_id INT NOT NULL,
+            channel VARCHAR(32) NOT NULL,
+            out_trade_no VARCHAR(64) NOT NULL,
+            amount DECIMAL(10,2) NOT NULL,
+            status VARCHAR(32) NOT NULL,
+            raw_payload JSON NULL,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            UNIQUE KEY uk_payment_records_out_trade_no (out_trade_no),
+            INDEX idx_payment_records_order_id (order_id),
+            CONSTRAINT fk_payment_records_order FOREIGN KEY (order_id) REFERENCES pre_orders(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 }

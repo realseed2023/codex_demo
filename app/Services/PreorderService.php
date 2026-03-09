@@ -6,14 +6,25 @@ namespace App\Services;
 
 use App\Repositories\PreorderRepository;
 use App\Repositories\TableRepository;
+use App\Services\Payment\NullPaymentGateway;
+use App\Services\Payment\PaymentGatewayInterface;
 use InvalidArgumentException;
 
 class PreorderService
 {
+    public const STATUS_DRAFT = 'draft';
+    public const STATUS_SUBMITTED = 'submitted';
+    public const STATUS_PENDING_PAYMENT = 'pending_payment';
+    public const STATUS_PAID = 'paid';
+    public const STATUS_CONFIRMED = 'confirmed';
+    public const STATUS_COMPLETED = 'completed';
+    public const STATUS_CANCELLED = 'cancelled';
+
     public function __construct(
         private readonly PreorderRepository $preorderRepository = new PreorderRepository(),
         private readonly MenuService $menuService = new MenuService(),
-        private readonly TableRepository $tableRepository = new TableRepository()
+        private readonly TableRepository $tableRepository = new TableRepository(),
+        private readonly PaymentGatewayInterface $paymentGateway = new NullPaymentGateway()
     ) {
     }
 
@@ -45,7 +56,7 @@ class PreorderService
         $draftId = isset($payload['pre_order_id']) ? (int) $payload['pre_order_id'] : null;
         if ($draftId !== null && $draftId > 0) {
             $draft = $this->preorderRepository->findById($draftId);
-            if ($draft === null || (string) ($draft['status'] ?? '') !== 'draft') {
+            if ($draft === null || (string) ($draft['status'] ?? '') !== self::STATUS_DRAFT) {
                 throw new InvalidArgumentException('草稿订单不存在或不可编辑');
             }
         }
@@ -62,19 +73,40 @@ class PreorderService
 
     public function submitPreorder(array $payload): array
     {
-        $status = (string) ($payload['status'] ?? 'pending_payment');
-        if (!in_array($status, ['pending_payment', 'await_confirm'], true)) {
-            throw new InvalidArgumentException('status 仅支持 pending_payment 或 await_confirm');
-        }
-
         $draft = $this->createOrUpdateCart($payload);
+        $payNow = (bool) ($payload['pay_now'] ?? false);
+        $finalStatus = $payNow ? self::STATUS_PENDING_PAYMENT : self::STATUS_SUBMITTED;
 
-        return $this->preorderRepository->submit([
+        $order = $this->preorderRepository->submit([
             'id' => (int) $draft['id'],
             'order_no' => $this->generateOrderNo(),
-            'status' => $status,
+            'status' => $finalStatus,
             'remark' => (string) ($payload['remark'] ?? ($draft['remark'] ?? '')),
         ]);
+
+        if ($payNow) {
+            $this->paymentGateway->createPaymentOrder([
+                'order_id' => (int) $order['id'],
+                'order_no' => (string) $order['order_no'],
+                'amount' => (float) $order['subtotal_amount'],
+                'channel' => (string) ($payload['payment_channel'] ?? 'reserved'),
+            ]);
+        }
+
+        return $order;
+    }
+
+    public function allowedStatusFlow(): array
+    {
+        return [
+            self::STATUS_DRAFT,
+            self::STATUS_SUBMITTED,
+            self::STATUS_PENDING_PAYMENT,
+            self::STATUS_PAID,
+            self::STATUS_CONFIRMED,
+            self::STATUS_COMPLETED,
+            self::STATUS_CANCELLED,
+        ];
     }
 
     private function buildOrderItems(array $items): array
