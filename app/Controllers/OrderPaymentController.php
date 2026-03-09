@@ -17,7 +17,7 @@ class OrderPaymentController
     {
         jsonResponse([
             'module' => 'order-payment',
-            'payment' => $this->paymentService->createIntent(),
+            'payment' => $this->paymentService->createIntent(requestJson()),
         ], 202);
     }
 
@@ -25,8 +25,16 @@ class OrderPaymentController
     {
         jsonResponse([
             'module' => 'order-payment',
-            'status' => $this->paymentService->status(),
+            'status' => $this->paymentService->status((string) ($_GET['out_trade_no'] ?? '')),
             'note' => 'Payment channel integration is intentionally pending.',
         ]);
+    }
+
+    public function callback(): void
+    {
+        jsonResponse([
+            'module' => 'order-payment',
+            'result' => $this->paymentService->callback(requestJson()),
+        ], 202);
     }
 }

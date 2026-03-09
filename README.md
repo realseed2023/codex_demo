@@ -37,6 +37,7 @@ MySQL 主要表：
 - `categories`
 - `menu_items`
 - `preorders`（`items` 字段为 JSON）
+- `payment_records`（预留支付流水：`order_id`,`channel`,`out_trade_no`,`amount`,`status`,`raw_payload`）
 
 ### 2.3 管理端接口
 - 分类：
@@ -74,9 +75,21 @@ MySQL 主要表：
 - `POST /client/cart`：创建/更新购物车（草稿单）
   - 支持传 `pre_order_id` 更新草稿
 - `POST /client/preorders/submit`：提交预订单
-  - `status` 支持 `pending_payment` / `await_confirm`，默认 `pending_payment`
+  - 支持 `pay_now`（默认 `false`）
+  - 当前版本默认“稍后支付”，订单流转到 `submitted`
 
 ### 3.3 关键约束
 - 提交前会校验桌码状态，`inactive` 或不存在桌码禁止下单
 - 下单行项目写入菜品名称和价格快照（`item_name_snapshot` / `unit_price_snapshot`）
 - 下单数量必须为正整数
+
+
+### 3.4 订单状态机（预留支付扩展）
+`draft` -> `submitted` -> `pending_payment` -> `paid` -> `confirmed` -> `completed` / `cancelled`
+
+### 3.5 支付抽象层（占位）
+- `app/Services/Payment/PaymentGatewayInterface.php`
+  - `createPaymentOrder(array $payload): array`
+  - `queryPaymentStatus(string $outTradeNo): array`
+  - `handleCallback(array $payload): array`
+- 当前由 `NullPaymentGateway` 返回 `implemented=false` 作为未实现占位

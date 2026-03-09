@@ -35,4 +35,5 @@ return [
     // 订单支付模块占位（仅接口与状态预留，暂不接支付渠道）
     ['POST', '/api/orders/payments', OrderPaymentController::class . '@createPaymentIntent'],
     ['GET', '/api/orders/payments/status', OrderPaymentController::class . '@paymentStatus'],
+    ['POST', '/api/orders/payments/callback', OrderPaymentController::class . '@callback'],
 ];
