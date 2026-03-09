@@ -23,9 +23,20 @@ class OrderPaymentController
 
     public function paymentStatus(): void
     {
+        $status = $this->paymentService->status((string) ($_GET['out_trade_no'] ?? ''));
+
+        if (!wantsJson()) {
+            view('payment.status', [
+                'status' => $status,
+                'outTradeNo' => (string) ($_GET['out_trade_no'] ?? ''),
+            ]);
+
+            return;
+        }
+
         jsonResponse([
             'module' => 'order-payment',
-            'status' => $this->paymentService->status((string) ($_GET['out_trade_no'] ?? '')),
+            'status' => $status,
             'note' => 'Payment channel integration is intentionally pending.',
         ]);
     }

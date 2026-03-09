@@ -54,6 +54,18 @@ function jsonResponse(array $payload, int $statusCode = 200): void
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 }
 
+function wantsJson(): bool
+{
+    $format = strtolower((string) ($_GET['format'] ?? ''));
+    if ($format === 'json') {
+        return true;
+    }
+
+    $accept = strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? ''));
+
+    return str_contains($accept, 'application/json');
+}
+
 function view(string $viewName, array $data = []): void
 {
     $file = __DIR__ . '/../Views/' . str_replace('.', '/', $viewName) . '.php';
