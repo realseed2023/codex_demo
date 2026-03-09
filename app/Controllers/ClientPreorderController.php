@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Services\PreorderService;
+use InvalidArgumentException;
 
 class ClientPreorderController
 {
@@ -23,10 +24,17 @@ class ClientPreorderController
 
     public function store(): void
     {
-        jsonResponse([
-            'module' => 'client-preorder',
-            'message' => 'Table QR preorder API placeholder completed.',
-            'next_step' => 'Validate table code and save preorder.',
-        ], 201);
+        try {
+            $preorder = $this->preorderService->createPreorder(requestJson());
+            jsonResponse([
+                'module' => 'client-preorder',
+                'data' => $preorder,
+            ], 201);
+        } catch (InvalidArgumentException $e) {
+            jsonResponse([
+                'module' => 'client-preorder',
+                'message' => $e->getMessage(),
+            ], 422);
+        }
     }
 }

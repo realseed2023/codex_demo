@@ -35,6 +35,18 @@ function env(string $key, ?string $default = null): ?string
     return $value === false || $value === null ? $default : (string) $value;
 }
 
+function requestJson(): array
+{
+    $raw = file_get_contents('php://input');
+    if ($raw === false || trim($raw) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+
+    return is_array($decoded) ? $decoded : [];
+}
+
 function jsonResponse(array $payload, int $statusCode = 200): void
 {
     http_response_code($statusCode);

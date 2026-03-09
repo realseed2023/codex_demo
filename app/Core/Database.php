@@ -1,0 +1,36 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Core;
+
+use PDO;
+
+class Database
+{
+    private static ?PDO $connection = null;
+
+    public static function connection(): PDO
+    {
+        if (self::$connection instanceof PDO) {
+            return self::$connection;
+        }
+
+        $config = require dirname(__DIR__, 2) . '/config/database.php';
+
+        $dsn = sprintf(
+            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+            $config['host'],
+            $config['port'],
+            $config['database'],
+            $config['charset']
+        );
+
+        self::$connection = new PDO($dsn, (string) $config['username'], (string) $config['password'], [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+
+        return self::$connection;
+    }
+}

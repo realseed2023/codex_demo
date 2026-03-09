@@ -1,0 +1,46 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "招牌",
+      "sort": 1,
+      "status": "enabled",
+      "created_at": "2026-01-01T00:00:00+00:00",
+      "updated_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+      "id": 2,
+      "name": "饮品",
+      "sort": 2,
+      "status": "enabled",
+      "created_at": "2026-01-01T00:00:00+00:00",
+      "updated_at": "2026-01-01T00:00:00+00:00"
+    }
+  ],
+  "menu_items": [
+    {
+      "id": 1,
+      "category_id": 1,
+      "name": "Signature Noodles",
+      "description": "Chef recommended noodles",
+      "price": 36,
+      "image_url": "",
+      "status": "on_sale",
+      "stock": 100,
+      "created_at": "2026-01-01T00:00:00+00:00",
+      "updated_at": "2026-01-01T00:00:00+00:00"
+    },
+    {
+      "id": 2,
+      "category_id": 2,
+      "name": "Iced Lemon Tea",
+      "description": "Fresh brewed tea with lemon",
+      "price": 12,
+      "image_url": "",
+      "status": "on_sale",
+      "stock": 100,
+      "created_at": "2026-01-01T00:00:00+00:00",
+      "updated_at": "2026-01-01T00:00:00+00:00"
+    }
+  ]
+}

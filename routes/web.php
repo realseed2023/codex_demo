@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Controllers\AdminMenuController;
 use App\Controllers\ClientPreorderController;
 use App\Controllers\HomeController;
+use App\Controllers\MenuController;
 use App\Controllers\OrderPaymentController;
 
 return [
@@ -12,7 +13,17 @@ return [
 
     // 管理端模块（菜单管理）
     ['GET', '/admin/menus', AdminMenuController::class . '@index'],
-    ['POST', '/admin/menus', AdminMenuController::class . '@store'],
+
+    ['POST', '/admin/categories', AdminMenuController::class . '@createCategory'],
+    ['PUT', '/admin/categories', AdminMenuController::class . '@updateCategory'],
+    ['DELETE', '/admin/categories', AdminMenuController::class . '@deleteCategory'],
+
+    ['POST', '/admin/menu-items', AdminMenuController::class . '@createMenuItem'],
+    ['PUT', '/admin/menu-items', AdminMenuController::class . '@updateMenuItem'],
+    ['DELETE', '/admin/menu-items', AdminMenuController::class . '@deleteMenuItem'],
+
+    // 对外菜单接口
+    ['GET', '/api/menus', MenuController::class . '@index'],
 
     // 客户端模块（桌码预下单）
     ['GET', '/client/preorders', ClientPreorderController::class . '@index'],

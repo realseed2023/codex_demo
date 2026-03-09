@@ -19,59 +19,43 @@
 3. 访问：
    - 首页：`http://127.0.0.1:8000/`
    - 管理端菜单模块：`http://127.0.0.1:8000/admin/menus`
+   - 对外菜单接口：`http://127.0.0.1:8000/api/menus`
    - 客户端桌码预下单：`http://127.0.0.1:8000/client/preorders`
-   - 订单支付状态占位：`http://127.0.0.1:8000/api/orders/payments/status`
 
-## 2. 目录结构说明
+## 2. 菜单管理最小可用能力
 
-```text
-public/                # 统一入口（index.php）
-routes/                # 路由定义（web.php）
-app/
-  Controllers/         # 控制器层
-  Services/            # 业务服务层
-  Repositories/        # 数据访问层
-  Models/              # 领域模型
-  Views/               # 视图模板（服务端渲染）
-  Core/                # 路由器、autoload、通用 helper
-config/                # 应用与数据库配置
-.env.example           # 环境变量模板
-```
+### 2.1 数据模型字段
+- `categories`：`id`, `name`, `sort`, `status`, `created_at`, `updated_at`
+- `menu_items`：`id`, `category_id`, `name`, `description`, `price`, `image_url`, `status`, `stock`, `created_at`, `updated_at`
 
-## 3. 主要模块边界
+### 2.2 数据存储模式（新增）
+通过 `DB_DRIVER` 配置切换存储实现：
+- `DB_DRIVER=json`：使用 `storage/menu_data.json` 和 `storage/preorders.json`
+- `DB_DRIVER=mysql`：使用 MySQL（Repository 会自动建表/初始化）
 
-### 3.1 管理端模块（菜单管理）
-- 路由：
-  - `GET /admin/menus`：菜单列表（示例数据）
-  - `POST /admin/menus`：菜单新增占位
-- 分层：
-  - `AdminMenuController` -> `MenuService` -> `MenuRepository`
+MySQL 主要表：
+- `categories`
+- `menu_items`
+- `preorders`（`items` 字段为 JSON）
 
-### 3.2 客户端模块（桌码预下单）
-- 路由：
-  - `GET /client/preorders`：预下单列表（示例数据）
-  - `POST /client/preorders`：预下单创建占位
-- 分层：
-  - `ClientPreorderController` -> `PreorderService` -> `PreorderRepository`
+### 2.3 管理端接口
+- 分类：
+  - `POST /admin/categories` 新增
+  - `PUT /admin/categories?id=1` 编辑（支持名称、排序、启用/禁用）
+  - `DELETE /admin/categories?id=1` 删除
+- 菜品：
+  - `POST /admin/menu-items` 新增
+  - `PUT /admin/menu-items?id=1` 编辑（支持上下架、库存调整）
+  - `DELETE /admin/menu-items?id=1` 删除
+- 查询：
+  - `GET /admin/menus` 查看分类与菜品
 
-### 3.3 订单支付模块（占位）
-- 当前仅预留接口和状态流转，不接入支付渠道。
-- 路由：
-  - `POST /api/orders/payments`：创建支付意图（`pending`）
-  - `GET /api/orders/payments/status`：查看支付状态及可流转状态
-- 后续可扩展为：
-  - 渠道适配层（如微信/支付宝）
-  - 回调验签
-  - 支付状态机持久化
+### 2.4 对外菜单读取接口
+- `GET /api/menus`
+- 仅返回启用分类下、且 `on_sale` 且库存大于 0 的菜品
+- 按分类聚合，按分类 `sort` 排序
 
-## 4. 路由与入口
-
-- `public/index.php`：统一入口，加载环境变量、注册 autoload、注入路由并分发请求。
-- `routes/web.php`：集中管理页面与 API 路由。
-
-## 5. 配置
-
-- `config/app.php`：应用名、环境、调试开关、基础 URL。
-- `config/database.php`：数据库连接参数（读取 `.env`）。
-
-> 说明：当前结构是可运行的最小骨架，未引入第三方框架，便于你后续迁移到 Laravel/Symfony 或继续按此架构扩展。
+### 2.5 基础校验
+- 价格必须为非负数
+- 分类与菜品名称必填
+- 下架或不可售（库存<=0）菜品不可加入预下单
