@@ -18,6 +18,16 @@ class ClientPreorderController
 
     public function index(): void
     {
+        if (!wantsJson()) {
+            view('client.preorders', [
+                'preorders' => $this->preorderService->listPreorders(),
+                'statusFlow' => $this->preorderService->allowedStatusFlow(),
+                'menu' => $this->menuService->publicMenu(),
+            ]);
+
+            return;
+        }
+
         jsonResponse([
             'module' => 'client-preorder',
             'preorders' => $this->preorderService->listPreorders(),
@@ -29,11 +39,30 @@ class ClientPreorderController
     {
         try {
             $tableCode = (string) ($_GET['table_code'] ?? '');
+
+            if (!wantsJson()) {
+                view('client.table-validate', [
+                    'tableCode' => $tableCode,
+                    'result' => $this->preorderService->validateTableCode($tableCode),
+                ]);
+
+                return;
+            }
+
             jsonResponse([
                 'module' => 'client-preorder',
                 'data' => $this->preorderService->validateTableCode($tableCode),
             ]);
         } catch (InvalidArgumentException $e) {
+            if (!wantsJson()) {
+                view('client.table-validate', [
+                    'tableCode' => (string) ($_GET['table_code'] ?? ''),
+                    'error' => $e->getMessage(),
+                ]);
+
+                return;
+            }
+
             jsonResponse([
                 'module' => 'client-preorder',
                 'message' => $e->getMessage(),
@@ -43,6 +72,14 @@ class ClientPreorderController
 
     public function menu(): void
     {
+        if (!wantsJson()) {
+            view('client.menu', [
+                'menu' => $this->menuService->publicMenu(),
+            ]);
+
+            return;
+        }
+
         jsonResponse([
             'module' => 'client-preorder',
             'menu' => $this->menuService->publicMenu(),

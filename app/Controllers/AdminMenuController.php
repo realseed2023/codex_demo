@@ -16,6 +16,15 @@ class AdminMenuController
 
     public function index(): void
     {
+        if (!wantsJson()) {
+            view('admin.menus', [
+                'menus' => $this->menuService->listMenus(),
+                'publicMenu' => $this->menuService->publicMenu(),
+            ]);
+
+            return;
+        }
+
         jsonResponse([
             'module' => 'admin-menu',
             'data' => $this->menuService->listMenus(),
