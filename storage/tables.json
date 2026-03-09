@@ -1,0 +1,20 @@
+[
+  {
+    "id": 1,
+    "table_code": "A01",
+    "name": "大厅A01",
+    "status": "active"
+  },
+  {
+    "id": 2,
+    "table_code": "A02",
+    "name": "大厅A02",
+    "status": "active"
+  },
+  {
+    "id": 3,
+    "table_code": "B01",
+    "name": "包厢B01",
+    "status": "inactive"
+  }
+]
