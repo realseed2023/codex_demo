@@ -24,9 +24,19 @@ class PreorderRepository
         return $this->driver === 'mysql' ? $this->allFromMysql() : $this->allFromJson();
     }
 
-    public function create(array $payload): array
+    public function findById(int $id): ?array
     {
-        return $this->driver === 'mysql' ? $this->createInMysql($payload) : $this->createInJson($payload);
+        return $this->driver === 'mysql' ? $this->findByIdFromMysql($id) : $this->findByIdFromJson($id);
+    }
+
+    public function saveDraft(array $payload): array
+    {
+        return $this->driver === 'mysql' ? $this->saveDraftInMysql($payload) : $this->saveDraftInJson($payload);
+    }
+
+    public function submit(array $payload): array
+    {
+        return $this->driver === 'mysql' ? $this->submitInMysql($payload) : $this->submitInJson($payload);
     }
 
     private function allFromJson(): array
@@ -36,16 +46,83 @@ class PreorderRepository
         return $rows;
     }
 
-    private function createInJson(array $payload): array
+    private function findByIdFromJson(int $id): ?array
+    {
+        foreach ($this->readJson() as $row) {
+            if ((int) $row['id'] === $id) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    private function saveDraftInJson(array $payload): array
     {
         $rows = $this->readJson();
+        $now = date('c');
+        $items = $this->normalizeItems($payload['items']);
+
+        if (!empty($payload['id'])) {
+            foreach ($rows as &$row) {
+                if ((int) $row['id'] !== (int) $payload['id']) {
+                    continue;
+                }
+
+                $row['table_id'] = (int) $payload['table_id'];
+                $row['table_code'] = (string) $payload['table_code'];
+                $row['status'] = 'draft';
+                $row['subtotal_amount'] = (float) $payload['subtotal_amount'];
+                $row['remark'] = (string) ($payload['remark'] ?? '');
+                $row['items'] = $items;
+                $row['updated_at'] = $now;
+                $this->writeJson($rows);
+                return $row;
+            }
+        }
+
         $ids = array_map(static fn(array $row): int => (int) ($row['id'] ?? 0), $rows);
-        $nextId = ($ids !== [] ? max($ids) : 100) + 1;
-        $payload['id'] = $nextId;
-        $rows[] = $payload;
+        $nextId = ($ids !== [] ? max($ids) : 1000) + 1;
+        $new = [
+            'id' => $nextId,
+            'table_id' => (int) $payload['table_id'],
+            'table_code' => (string) $payload['table_code'],
+            'order_no' => null,
+            'status' => 'draft',
+            'subtotal_amount' => (float) $payload['subtotal_amount'],
+            'remark' => (string) ($payload['remark'] ?? ''),
+            'items' => $items,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
+
+        $rows[] = $new;
         $this->writeJson($rows);
 
-        return $payload;
+        return $new;
+    }
+
+    private function submitInJson(array $payload): array
+    {
+        $rows = $this->readJson();
+        $now = date('c');
+
+        if (!empty($payload['id'])) {
+            foreach ($rows as &$row) {
+                if ((int) $row['id'] !== (int) $payload['id']) {
+                    continue;
+                }
+
+                $row['status'] = (string) $payload['status'];
+                $row['order_no'] = (string) $payload['order_no'];
+                $row['remark'] = (string) ($payload['remark'] ?? ($row['remark'] ?? ''));
+                $row['updated_at'] = $now;
+                $this->writeJson($rows);
+                return $row;
+            }
+        }
+
+        return $this->saveDraftInJson($payload + ['status' => (string) $payload['status']]);
     }
 
     private function readJson(): array
@@ -75,52 +152,157 @@ class PreorderRepository
         $pdo = Database::connection();
         $this->ensureMysqlSchema($pdo);
 
-        $stmt = $pdo->query('SELECT id,table_code,status,items,total_amount,created_at FROM preorders ORDER BY id DESC');
-        $rows = $stmt->fetchAll();
+        $stmt = $pdo->query('SELECT id,table_id,order_no,status,subtotal_amount,remark,created_at,updated_at FROM pre_orders ORDER BY id DESC');
+        $orders = $stmt->fetchAll();
 
-        return array_map(function (array $row): array {
-            return [
-                'id' => (int) $row['id'],
-                'table_code' => (string) $row['table_code'],
-                'status' => (string) $row['status'],
-                'items' => json_decode((string) $row['items'], true) ?: [],
-                'total_amount' => (float) $row['total_amount'],
-                'created_at' => date('c', strtotime((string) $row['created_at'])),
-            ];
-        }, $rows);
+        return array_map(fn(array $row): array => $this->hydrateMysqlOrder($pdo, $row), $orders);
     }
 
-    private function createInMysql(array $payload): array
+    private function findByIdFromMysql(int $id): ?array
     {
         $pdo = Database::connection();
         $this->ensureMysqlSchema($pdo);
 
-        $stmt = $pdo->prepare('INSERT INTO preorders (table_code,status,items,total_amount,created_at) VALUES (:table_code,:status,:items,:total_amount,:created_at)');
+        $stmt = $pdo->prepare('SELECT id,table_id,order_no,status,subtotal_amount,remark,created_at,updated_at FROM pre_orders WHERE id=:id LIMIT 1');
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch();
 
-        $createdAtMysql = date('Y-m-d H:i:s', strtotime((string) $payload['created_at']));
+        return $row ? $this->hydrateMysqlOrder($pdo, $row) : null;
+    }
+
+    private function saveDraftInMysql(array $payload): array
+    {
+        $pdo = Database::connection();
+        $this->ensureMysqlSchema($pdo);
+        $now = date('Y-m-d H:i:s');
+
+        if (!empty($payload['id'])) {
+            $stmt = $pdo->prepare('UPDATE pre_orders SET table_id=:table_id, status=:status, subtotal_amount=:subtotal_amount, remark=:remark, updated_at=:updated_at WHERE id=:id');
+            $stmt->execute([
+                ':id' => (int) $payload['id'],
+                ':table_id' => (int) $payload['table_id'],
+                ':status' => 'draft',
+                ':subtotal_amount' => (float) $payload['subtotal_amount'],
+                ':remark' => (string) ($payload['remark'] ?? ''),
+                ':updated_at' => $now,
+            ]);
+            $id = (int) $payload['id'];
+
+            $pdo->prepare('DELETE FROM pre_order_items WHERE pre_order_id=:pre_order_id')->execute([':pre_order_id' => $id]);
+        } else {
+            $stmt = $pdo->prepare('INSERT INTO pre_orders (table_id,order_no,status,subtotal_amount,remark,created_at,updated_at) VALUES (:table_id,:order_no,:status,:subtotal_amount,:remark,:created_at,:updated_at)');
+            $stmt->execute([
+                ':table_id' => (int) $payload['table_id'],
+                ':order_no' => null,
+                ':status' => 'draft',
+                ':subtotal_amount' => (float) $payload['subtotal_amount'],
+                ':remark' => (string) ($payload['remark'] ?? ''),
+                ':created_at' => $now,
+                ':updated_at' => $now,
+            ]);
+            $id = (int) $pdo->lastInsertId();
+        }
+
+        $itemStmt = $pdo->prepare('INSERT INTO pre_order_items (pre_order_id,menu_item_id,item_name_snapshot,unit_price_snapshot,quantity,line_amount) VALUES (:pre_order_id,:menu_item_id,:item_name_snapshot,:unit_price_snapshot,:quantity,:line_amount)');
+        foreach ($this->normalizeItems($payload['items']) as $item) {
+            $itemStmt->execute([
+                ':pre_order_id' => $id,
+                ':menu_item_id' => (int) $item['menu_item_id'],
+                ':item_name_snapshot' => (string) $item['item_name_snapshot'],
+                ':unit_price_snapshot' => (float) $item['unit_price_snapshot'],
+                ':quantity' => (int) $item['quantity'],
+                ':line_amount' => (float) $item['line_amount'],
+            ]);
+        }
+
+        return $this->findByIdFromMysql($id) ?? [];
+    }
+
+    private function submitInMysql(array $payload): array
+    {
+        $pdo = Database::connection();
+        $this->ensureMysqlSchema($pdo);
+
+        $stmt = $pdo->prepare('UPDATE pre_orders SET order_no=:order_no,status=:status,remark=:remark,updated_at=:updated_at WHERE id=:id');
         $stmt->execute([
-            ':table_code' => (string) $payload['table_code'],
+            ':id' => (int) $payload['id'],
+            ':order_no' => (string) $payload['order_no'],
             ':status' => (string) $payload['status'],
-            ':items' => json_encode($payload['items'] ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            ':total_amount' => (float) $payload['total_amount'],
-            ':created_at' => $createdAtMysql,
+            ':remark' => (string) ($payload['remark'] ?? ''),
+            ':updated_at' => date('Y-m-d H:i:s'),
         ]);
 
-        $payload['id'] = (int) $pdo->lastInsertId();
-        $payload['created_at'] = date('c', strtotime($createdAtMysql));
+        return $this->findByIdFromMysql((int) $payload['id']) ?? [];
+    }
 
-        return $payload;
+    private function hydrateMysqlOrder(PDO $pdo, array $row): array
+    {
+        $itemStmt = $pdo->prepare('SELECT menu_item_id,item_name_snapshot,unit_price_snapshot,quantity,line_amount FROM pre_order_items WHERE pre_order_id=:pre_order_id ORDER BY id ASC');
+        $itemStmt->execute([':pre_order_id' => (int) $row['id']]);
+        $items = $itemStmt->fetchAll();
+
+        return [
+            'id' => (int) $row['id'],
+            'table_id' => (int) $row['table_id'],
+            'order_no' => $row['order_no'] !== null ? (string) $row['order_no'] : null,
+            'status' => (string) $row['status'],
+            'subtotal_amount' => (float) $row['subtotal_amount'],
+            'remark' => (string) $row['remark'],
+            'items' => array_map(fn(array $item): array => [
+                'menu_item_id' => (int) $item['menu_item_id'],
+                'item_name_snapshot' => (string) $item['item_name_snapshot'],
+                'unit_price_snapshot' => (float) $item['unit_price_snapshot'],
+                'quantity' => (int) $item['quantity'],
+                'line_amount' => (float) $item['line_amount'],
+            ], $items),
+            'created_at' => date('c', strtotime((string) $row['created_at'])),
+            'updated_at' => date('c', strtotime((string) $row['updated_at'])),
+        ];
+    }
+
+    private function normalizeItems(array $items): array
+    {
+        return array_map(static fn(array $item): array => [
+            'menu_item_id' => (int) $item['menu_item_id'],
+            'item_name_snapshot' => (string) $item['item_name_snapshot'],
+            'unit_price_snapshot' => (float) $item['unit_price_snapshot'],
+            'quantity' => (int) $item['quantity'],
+            'line_amount' => (float) $item['line_amount'],
+        ], $items);
     }
 
     private function ensureMysqlSchema(PDO $pdo): void
     {
-        $pdo->exec("CREATE TABLE IF NOT EXISTS preorders (
+        $pdo->exec("CREATE TABLE IF NOT EXISTS tables (
             id INT PRIMARY KEY AUTO_INCREMENT,
-            table_code VARCHAR(64) NOT NULL,
+            table_code VARCHAR(64) NOT NULL UNIQUE,
+            name VARCHAR(100) NOT NULL,
+            status VARCHAR(32) NOT NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pre_orders (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            table_id INT NOT NULL,
+            order_no VARCHAR(64) NULL,
             status VARCHAR(32) NOT NULL,
-            items JSON NOT NULL,
-            total_amount DECIMAL(10,2) NOT NULL,
-            created_at DATETIME NOT NULL
+            subtotal_amount DECIMAL(10,2) NOT NULL,
+            remark VARCHAR(255) NOT NULL DEFAULT '',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            INDEX idx_pre_orders_table_id (table_id),
+            CONSTRAINT fk_pre_orders_table FOREIGN KEY (table_id) REFERENCES tables(id) ON DELETE RESTRICT
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        $pdo->exec("CREATE TABLE IF NOT EXISTS pre_order_items (
+            id INT PRIMARY KEY AUTO_INCREMENT,
+            pre_order_id INT NOT NULL,
+            menu_item_id INT NOT NULL,
+            item_name_snapshot VARCHAR(120) NOT NULL,
+            unit_price_snapshot DECIMAL(10,2) NOT NULL,
+            quantity INT NOT NULL,
+            line_amount DECIMAL(10,2) NOT NULL,
+            INDEX idx_pre_order_items_pre_order_id (pre_order_id),
+            CONSTRAINT fk_pre_order_items_pre_order FOREIGN KEY (pre_order_id) REFERENCES pre_orders(id) ON DELETE CASCADE
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
 }

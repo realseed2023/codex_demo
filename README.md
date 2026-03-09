@@ -59,3 +59,24 @@ MySQL 主要表：
 - 价格必须为非负数
 - 分类与菜品名称必填
 - 下架或不可售（库存<=0）菜品不可加入预下单
+
+
+## 3. 桌码预下单闭环（扫码/输入桌码 -> 选菜 -> 提交）
+
+### 3.1 数据模型
+- `tables`：`id`, `table_code`, `name`, `status`
+- `pre_orders`：`id`, `table_id`, `order_no`, `status`, `subtotal_amount`, `remark`, `created_at`, `updated_at`
+- `pre_order_items`：`id`, `pre_order_id`, `menu_item_id`, `item_name_snapshot`, `unit_price_snapshot`, `quantity`, `line_amount`
+
+### 3.2 客户端接口
+- `GET /client/table/validate?table_code=A01`：校验桌码有效性
+- `GET /client/menu`：获取可售菜单
+- `POST /client/cart`：创建/更新购物车（草稿单）
+  - 支持传 `pre_order_id` 更新草稿
+- `POST /client/preorders/submit`：提交预订单
+  - `status` 支持 `pending_payment` / `await_confirm`，默认 `pending_payment`
+
+### 3.3 关键约束
+- 提交前会校验桌码状态，`inactive` 或不存在桌码禁止下单
+- 下单行项目写入菜品名称和价格快照（`item_name_snapshot` / `unit_price_snapshot`）
+- 下单数量必须为正整数
