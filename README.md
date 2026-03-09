@@ -104,8 +104,10 @@ MySQL 主要表：
 2. 打开仓库 `Actions` 页面，选择 **Temporary PHP Preview** 工作流。
 3. 点击 **Run workflow**，可选填写 `duration_minutes`（1-120，默认 30）。
 4. 工作流启动后，在该次运行的 **Summary** 中查看临时预览 URL（`https://xxxx.trycloudflare.com`）。
+5. 如果是 PR 触发（opened/synchronize/reopened），工作流会自动在 PR 下创建或更新评论，贴出最新预览链接。
 
 ### 注意事项
 - 这是临时预览地址，仅在工作流运行期间有效。
+- PR 自动评论会覆盖更新为最新一次运行产生的链接（避免同一个 PR 出现多条旧链接）。
 - 工作流结束后链接失效，需要重新触发工作流获取新地址。
 - 该方案适合演示与验收，不建议直接作为生产部署。
